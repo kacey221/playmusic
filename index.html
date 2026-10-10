@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>声绘 · Music Canvas</title><link rel="stylesheet" href="styles.css"/></head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">✦</div><div><div class="brand-name">声绘</div><div class="brand-sub">MUSIC CANVAS</div></div></div>
+    <div class="section-label">创作工具</div>
+    <label class="upload-btn"><span>＋</span> 上传一张照片<input id="photoInput" type="file" accept="image/*"/></label>
+    <div class="tool-card"><div class="tool-title">画线 · 生成旋律</div><div class="tool-desc">从左到右是时间<br/>上下是音高</div><div class="color-row" id="colorRow"></div></div>
+    <div class="tool-card"><div class="tool-title">颜色 · 决定音色</div><div class="tool-desc">画不同颜色的线，叠加出旋律和和声</div><div class="beat-hint"><i></i><i></i><i></i><i></i><span>画线试试</span></div></div>
+    <div class="tool-card photo-card"><div class="tool-title">照片 · 自动成曲</div><div class="tool-desc">图片的颜色与明暗会转成旋律和节奏</div><button id="generateBtn" class="soft-btn">✦ 从照片生成音乐</button></div>
+    <div class="legend"><div><span class="dot melody"></span>旋律线</div><div><span class="dot beat"></span>辅助节拍</div><div><span class="dot photo"></span>照片音符</div></div>
+  </aside>
+  <main class="main-area">
+    <header class="topbar"><div><div class="eyebrow">VISUAL COMPOSITION / 01</div><h1>把你的画面，听成一首歌</h1></div><div class="status"><span class="status-dot"></span><span id="statusText">准备就绪</span></div></header>
+    <section class="canvas-wrap"><div class="canvas-toolbar"><span class="canvas-title">我的音乐画布</span><span id="eventCount">0 个声音事件</span><button id="clearPhotoBtn" class="ghost-btn">移除照片</button></div><div class="canvas-stage"><canvas id="canvas"></canvas><div class="empty-state" id="emptyState"><div class="empty-icon">◌</div><div class="empty-title">从这里开始创作</div><div class="empty-desc">上传照片，或直接在画布上画线、点按</div></div></div></section>
+    <div class="tip-row"><span>⌁</span><span>线条的颜色决定音色 · 照片的色彩决定情绪</span></div>
+    <footer class="transport"><div class="transport-left"><button id="playBtn" class="play-btn">▶</button><div><div class="track-name">未命名的画作</div><div class="track-meta"><span id="tempoText">120 BPM</span><span>·</span><span id="durationText">8 秒</span></div></div></div><div class="transport-center"><div class="progress-track"><div id="progressBar" class="progress-fill"></div><div id="progressHandle" class="progress-handle"></div></div><div class="time-row"><span id="currentTime">0:00</span><span>0:08</span></div></div><button id="redrawBtn" class="redraw-btn">↻ <span>重画</span></button></footer>
+  </main>
+</div><script>const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');const stage=document.querySelector('.canvas-stage');const colors=['#a4d45a','#f58b62','#8fa6c7','#c48fce','#efbd5f'];let color=colors[0],strokes=[],beats=[],photo=null,playing=false,startAt=0,raf,events=[];const empty=document.getElementById('emptyState');
+const selectedInstruments=['triangle'];document.querySelectorAll('.instrument').forEach(btn=>btn.onclick=()=>{const type=btn.dataset.type;const i=selectedInstruments.indexOf(type);if(i>=0&&selectedInstruments.length>1){selectedInstruments.splice(i,1);btn.classList.remove('active')}else if(i<0){selectedInstruments.push(type);btn.classList.add('active')}});colors.forEach((c,i)=>{const d=document.createElement('button');d.className='color-dot '+(i===0?'active':'');d.style.background=c;d.title=['清新合成器','珊瑚鼓点','蓝色钢琴','紫色贝斯','金色钟琴'][i];d.onclick=()=>{color=c;document.querySelectorAll('.color-dot').forEach(x=>x.classList.remove('active'));d.classList.add('active')};document.getElementById('colorRow').appendChild(d)});
+var drawing=false,current=[],lastPreview=0;function resize(){const r=stage.getBoundingClientRect(),ratio=devicePixelRatio||1;canvas.width=r.width*ratio;canvas.height=r.height*ratio;canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';ctx.setTransform(ratio,0,0,ratio,0,0);draw()}window.addEventListener('resize',resize);resize();
+function pos(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}function startDraw(e){e.preventDefault();const p=pos(e);if(e.shiftKey||e.button===2){beats.push({...p,color});kick(0);update();draw();return}drawing=true;current=[p];if(canvas.setPointerCapture)canvas.setPointerCapture(e.pointerId);tone(noteFreq(p.y),.18,'triangle',.05)}function moveDraw(e){if(!drawing)return;e.preventDefault();const p=pos(e);current.push(p);if(performance.now()-lastPreview>90){tone(noteFreq(p.y),.14,'triangle',.035);lastPreview=performance.now()}draw()}function endDraw(){if(!drawing)return;drawing=false;if(current.length>1){strokes.push({points:current,color})}current=[];update();draw()}canvas.style.pointerEvents='auto';canvas.addEventListener('mousedown',startDraw);canvas.addEventListener('mousemove',moveDraw);window.addEventListener('mouseup',endDraw);canvas.oncontextmenu=e=>e.preventDefault();document.addEventListener('mousedown',e=>{if(!stage.contains(e.target))return;startDraw(e)});document.addEventListener('mousemove',e=>{if(drawing)moveDraw(e)});document.addEventListener('mouseup',e=>{if(drawing)endDraw(e)});
+function draw(){const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#fbfbf8';ctx.fillRect(0,0,w,h);if(photo){ctx.globalAlpha=.68;ctx.drawImage(photo,0,0,w,h);ctx.globalAlpha=1;ctx.fillStyle='rgba(255,255,255,.2)';ctx.fillRect(0,0,w,h)}ctx.strokeStyle='rgba(120,130,115,.1)';ctx.lineWidth=1;for(let i=1;i<8;i++){let x=w*i/8;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let i=1;i<5;i++){let y=h*i/5;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}strokes.forEach(s=>{ctx.strokeStyle=s.color;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();s.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();});beats.forEach(b=>{ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(b.x,b.y,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()});if(current.length>1){ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();current.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke()}if(playing){const x=((performance.now()-startAt)%8000)/8000*w;ctx.strokeStyle='#273127';ctx.globalAlpha=.65;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();ctx.globalAlpha=1}}
+function update(){const n=strokes.length+(photo?8:0);document.getElementById('eventCount').textContent=n+' 个声音事件';empty.style.display=n?'none':'grid'}
+const SCALE=[0,2,4,7,9,12,14,16,19,21,24];
+function noteFreq(y){const idx=Math.max(0,Math.min(SCALE.length-1,Math.round((1-y/canvas.clientHeight)*(SCALE.length-1))));return 220*Math.pow(2,SCALE[idx]/12)}
+function audio(){try{const ac=window.audioCtx||(window.audioCtx=new (window.AudioContext||window.webkitAudioContext)());if(ac.state==='suspended')ac.resume();return ac}catch(e){return null}}
+function tone(freq,dur=.35,type='sine',gain=.08,when=0){const ac=audio();if(!ac)return;const o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();o.type=type;o.frequency.value=freq;f.type='lowpass';f.frequency.value=2600;g.gain.setValueAtTime(.001,ac.currentTime+when);g.gain.exponentialRampToValueAtTime(gain,ac.currentTime+when+.025);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+when+dur);o.connect(f).connect(g).connect(ac.destination);o.start(ac.currentTime+when);o.stop(ac.currentTime+when+dur+.04)}
+function kick(when=0){const ac=audio();if(!ac)return;const o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(130,ac.currentTime+when);o.frequency.exponentialRampToValueAtTime(48,ac.currentTime+when+.18);g.gain.setValueAtTime(.24,ac.currentTime+when);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+when+.2);o.connect(g).connect(ac.destination);o.start(ac.currentTime+when);o.stop(ac.currentTime+when+.22)}
+function photoTone(freq,type,when=0,gain=.06){const ac=audio();if(!ac)return;const profile={sine:[1,2,.35],triangle:[1,2,.22],sawtooth:[1,.5,.18],square:[1,.3,.08]}[type]||[1,1,.2];[1,2,3].forEach((ratio,i)=>{const o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();o.type=i===0?type:'sine';o.frequency.value=freq*ratio;o.detune.value=i===1?5:-3;f.type='lowpass';f.frequency.value=type==='sawtooth'?1100:type==='square'?2600:2200;const level=gain*profile[i];g.gain.setValueAtTime(.001,ac.currentTime+when);g.gain.exponentialRampToValueAtTime(level,ac.currentTime+when+.015+i*.01);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+when+(type==='triangle'?.9:.55)+i*.06);o.connect(f).connect(g).connect(ac.destination);o.start(ac.currentTime+when);o.stop(ac.currentTime+when+.65)});}function snare(when=0){const ac=audio();if(!ac)return;const n=ac.createBufferSource(),b=ac.createBuffer(1,ac.sampleRate*.12,ac.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const g=ac.createGain();g.gain.setValueAtTime(.12,ac.currentTime+when);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+when+.12);n.buffer=b;n.connect(g).connect(ac.destination);n.start(ac.currentTime+when)}function buildEvents(){events=[];strokes.forEach(s=>{const type=s.color==='#8fa6c7'?'sine':s.color==='#c48fce'?'sawtooth':s.color==='#f58b62'?'square':'triangle';const step=Math.max(1,Math.floor(s.points.length/12));s.points.forEach((p,i)=>{if(i%step===0){selectedInstruments.forEach(instrument=>events.push({t:Math.max(0,Math.min(7.8,p.x/canvas.clientWidth*8)),f:noteFreq(p.y),kind:'note',type:instrument}))}})});if(photo){for(let i=0;i<8;i++){const x=Math.floor(canvas.clientWidth*(i+.5)/8),y=Math.floor(canvas.clientHeight*.5),data=ctx.getImageData(x,y,1,1).data;const r=data[0],g=data[1],b=data[2],brightness=(r+g+b)/3;let type='sine';if(r>g*1.3&&r>b*1.2)type='square';else if(b>r*1.2&&b>g*1.05)type='sawtooth';else if(g>r*1.12&&g>b*.9)type='triangle';else if(r>180&&g>150&&b<130)type='triangle';const yPitch=canvas.clientHeight*(.18+(1-brightness/255)*.64);events.push({t:i,f:noteFreq(yPitch),kind:'note',type,photo:true,photoColor:[r,g,b]})}}events.sort((a,b)=>a.t-b.t)}function play(){if(window.audioCtx&&window.audioCtx.state==='suspended')window.audioCtx.resume();if(playing){playing=false;cancelAnimationFrame(raf);document.getElementById('playBtn').textContent='▶';document.getElementById('statusText').textContent='已暂停';return}buildEvents();if(!events.length){document.getElementById('statusText').textContent='先画线、点按或上传照片';return}playing=true;startAt=performance.now();document.getElementById('playBtn').textContent='Ⅱ';document.getElementById('statusText').textContent='正在播放';events.forEach(e=>{if(e.kind==='kick')kick(e.t);else if(e.kind==='snare')snare(e.t);else if(e.kind==='hat')tone(4200,.05,'square',.018,e.t);else if(e.kind==='chord')tone(e.f,.7,'sine',.018,e.t);else if(e.photo)photoTone(e.f,e.type,e.t,.065);else tone(e.f,.34,e.type==='flute'||e.type==='flute2'?'sine':e.type==='pluck'||e.type==='guitar'?'triangle':e.type,.065,e.t)});const tick=()=>{if(!playing)return;const elapsed=performance.now()-startAt;document.getElementById('progressBar').style.width=Math.min(100,elapsed/80)+'%';document.getElementById('progressHandle').style.left=Math.min(100,elapsed/80)+'%';document.getElementById('currentTime').textContent='0:'+String(Math.floor(elapsed/1000)).padStart(2,'0');draw();if(elapsed<8000)raf=requestAnimationFrame(tick);else{playing=false;document.getElementById('playBtn').textContent='▶';document.getElementById('statusText').textContent='播放完成'}};tick()}
+document.getElementById('playBtn').onclick=play;document.getElementById('redrawBtn').onclick=()=>{strokes=[];beats=[];photo=null;update();draw();document.getElementById('statusText').textContent='画布已重置'};document.getElementById('clearPhotoBtn').onclick=()=>{photo=null;update();draw()};document.getElementById('generateBtn').onclick=()=>{if(!photo){document.getElementById('statusText').textContent='请先上传照片';return}update();draw();document.getElementById('statusText').textContent='已从照片生成 8 个音符'};document.getElementById('photoInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const img=new Image();img.onload=()=>{photo=img;update();draw();document.getElementById('statusText').textContent='照片已加入画布'};img.src=URL.createObjectURL(f)};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script></body></html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
